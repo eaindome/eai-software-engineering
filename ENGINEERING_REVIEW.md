@@ -4,7 +4,7 @@
 >
 > **Core principle:** Don't merely ask whether the happy path works. Ask what must always remain true, what assumptions may be wrong, how the operation can fail, and how the system recovers.
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Scope:** Backend-first, applicable to frontend and full-stack features  
 **Review modes:** Feature review, pull-request review, production-incident follow-up, pre-release review
 
@@ -20,6 +20,7 @@
 6. **Do not make unrelated edits.** During review, recommend changes first; implement only when authorized.
 7. **Preserve confidentiality.** Do not put production personal data, secrets, or sensitive records in review reports or agent prompts.
 8. **Aim for justified confidence, not perfection.** State what was checked, what was not checked, and residual risks.
+9. **Distinguish pre-existing issues from introduced ones.** Tag all findings `[Introduced]` or `[Pre-existing]`. Do not block a change for pre-existing debt it did not create.
 
 ## 1. Establish the feature's contract
 
@@ -35,6 +36,22 @@ Before reviewing, answer:
 - **Authority:** Which requirements are explicit, and which need product/domain approval?
 
 If key facts are unknown, list the questions before proposing implementation changes.
+
+---
+
+## Phase 0 — Feature map (human-gated)
+
+Run this phase **once per codebase**, before any pass-level review begins. Its purpose is to prevent shallow coverage by forcing explicit ordering and scoping before reviews start.
+
+**Step 1 — Discovery (agent):** Scan the codebase and enumerate all features. For each, record: name, entry point(s), and a one-sentence purpose. Present the full list to the human reviewer.
+
+**Step 2 — Ordering (human):** The human organizes features into a review sequence:
+
+- **Main flow:** the core path through the system in the order operations actually happen (e.g. Onboarding → Computation → Benefit Audit → Payroll). Review these first, in dependency order — findings from an upstream feature give context for downstream ones.
+- **Supporting features:** features that feed into or extend the main flow (e.g. Change Requests, Dependant Applications, Gratuity Recomputation). Review these after the main flow, grouped by which main-flow step they touch.
+- **Risk flags:** the human marks any feature as elevated risk (financial impact, complex state machine, security-sensitive) to signal deeper pass coverage for that feature.
+
+**Step 3 — Sequential review:** Reviews proceed one feature at a time, in the agreed order. Each feature gets its own invocation of the full five-pass review. Do not collapse multiple features into one prompt — breadth kills depth.
 
 ---
 
@@ -54,6 +71,8 @@ Check:
 - [ ] Performance pitfalls (N+1 queries, unnecessary materialization, unbounded work)
 - [ ] Dependency/configuration assumptions that fail outside local development
 
+If a stack-specific companion file exists for this codebase, apply its checklist here.
+
 **Output:** Reproducible bugs with file/line references, expected vs actual behavior, and suggested verification.
 
 ## Pass 2 — Logical and business correctness
@@ -67,6 +86,8 @@ Check:
 - [ ] Date ordering, age/tenure rules, timezones, inclusive/exclusive deadlines
 - [ ] Financial calculations, rounding, currency, units, and approved formulas
 - [ ] State transitions: permitted, forbidden, repeated, and reversed actions
+- [ ] Can every reachable state exit via at least one valid transition? Map dead-end states explicitly.
+- [ ] Does the implementation match any existing design document or specification? If they diverge, establish which is authoritative before proceeding.
 - [ ] Authorization for the *specific resource*, not just authenticated access
 - [ ] Uniqueness and referential integrity at the database level where appropriate
 - [ ] Idempotency: repeated requests do not duplicate business effects
@@ -112,6 +133,7 @@ Actively ask:
 - What if a record is missing, duplicated, historical, migrated, or partially completed?
 - What if a rule varies by role, programme, effective date, or policy exception?
 - What if the requirement describes only the happy path?
+- Are there codebase-specific documented patterns that look unusual but are intentional? Check decision logs, architecture notes, or convention documentation before flagging as a defect.
 
 For every gap, record **the question, plausible scenarios, risk, options, and the decision owner**. Never treat an unapproved option as established policy.
 
@@ -187,6 +209,7 @@ Review mode: <feature | PR | incident | release>
 - Pass: <1–5>
 - Severity: <Critical | High | Medium | Low>
 - Confidence: <Confirmed | Potential>
+- Status: <[Introduced] | [Pre-existing]>
 - Evidence: <file:line, query, reproduction, or test>
 - Scenario: <how it occurs>
 - Impact: <business/system/user consequence>
@@ -243,14 +266,15 @@ You are acting as a **reviewer, not an autonomous policy-maker**.
 
 1. Read this file and the repository's architecture, conventions, and relevant requirements.
 2. Summarize the feature and its invariants before reporting defects.
-3. Perform all five passes; don't stop at syntax, style, or happy-path tests.
+3. Review one feature at a time, in the human-specified order from Phase 0. Do not attempt multiple features in a single invocation — breadth kills depth.
 4. Trace callers, persistence, authorization, and downstream effects when repository access permits.
 5. Prefer evidence-backed, high-impact findings. Include exact paths and line numbers when available.
 6. Never claim a test passed unless it was actually run. Never invent code locations or requirements.
 7. Distinguish confirmed bugs from hypothetical risks and unresolved business decisions.
-8. Do not edit code, migrations, or production data unless explicitly instructed.
-9. Do not expose secrets or sensitive user data in output.
-10. Report coverage limitations and the most valuable next tests.
+8. If a stack-specific companion file exists for this codebase, apply it alongside Pass 1.
+9. Do not edit code, migrations, or production data unless explicitly instructed.
+10. Do not expose secrets or sensitive user data in output.
+11. Report coverage limitations and the most valuable next tests.
 
 **Suggested agent prompt:**
 
@@ -277,11 +301,11 @@ Keep this file alive. When a production incident teaches a reusable lesson, add 
 | Date | Version | Change | Lesson / trigger |
 | --- | --- | --- | --- |
 | 2026-11-13 | 1.0 | Initial five-pass review playbook | Move beyond happy-path code review |
+| 2026-11-14 | 1.1 | Phase 0 feature map; dead-end state check; design doc divergence check; intentional-pattern guard in Pass 4; pre-existing vs introduced tagging (Rule 9); one-feature-per-invocation agent rule; stack companion reference | CPMS Management Portal review cycle |
 
 ### Future enhancements
 
 - Domain-specific appendices (pensions, sponsorships, payments, identity)
-- Language-specific checklists (.NET/C#, PostgreSQL, GraphQL)
 - CI automation and reusable test templates
 - Architecture-specific failure-mode catalogs
 - Team review metrics and incident-derived regression library
